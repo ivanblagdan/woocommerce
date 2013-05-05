@@ -5,7 +5,7 @@ msgstr ""
 "Project-Id-Version: woocommerce\n"
 "Report-Msgid-Bugs-To: https://github.com/woothemes/woocommerce/issues\n"
 "POT-Creation-Date: 2013-03-04 09:46:16+00:00\n"
-"PO-Revision-Date: 2013-04-11 17:39+0100\n"
+"PO-Revision-Date: 2013-04-11 19:46+0100\n"
 "Last-Translator: tatamata <kuku.lele@gmail.com>\n"
 "Language-Team: BGz <bgz@idealivery.com>\n"
 "MIME-Version: 1.0\n"
@@ -5532,7 +5532,7 @@ msgstr "Poredaj po cijeni: od više prema nižoj"
 
 #: templates/loop/result-count.php:28
 msgid "Showing the single result"
-msgstr "Prikazuje se jedan rezuktat"
+msgstr "Prikazuje se jedan rezultat"
 
 #: templates/loop/result-count.php:30
 msgid "Showing all %d results"
