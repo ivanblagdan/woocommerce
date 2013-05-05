@@ -277,7 +277,7 @@ class WC_Checkout {
 			 	if ( $_product->backorders_require_notification() && $_product->is_on_backorder( $values['quantity'] ) )
 			 		woocommerce_add_order_item_meta( $item_id, apply_filters( 'woocommerce_backordered_item_meta_name', __( 'Backordered', 'woocommerce' ), $cart_item_key, $order_id ), $values['quantity'] - max( 0, $_product->get_total_stock() ) );
 
-			 	//allow plugins to add order item meta
+			 	// Allow plugins to add order item meta
 			 	do_action( 'woocommerce_add_order_item_meta', $item_id, $values );
 		 	}
 		}
@@ -346,8 +346,8 @@ class WC_Checkout {
 		update_post_meta( $order_id, '_order_shipping', 		woocommerce_format_total( $woocommerce->cart->shipping_total ) );
 		update_post_meta( $order_id, '_order_discount', 		woocommerce_format_total( $woocommerce->cart->get_order_discount_total() ) );
 		update_post_meta( $order_id, '_cart_discount', 			woocommerce_format_total( $woocommerce->cart->get_cart_discount_total() ) );
-		update_post_meta( $order_id, '_order_tax', 				woocommerce_format_total( $woocommerce->cart->tax_total ) );
-		update_post_meta( $order_id, '_order_shipping_tax', 	woocommerce_format_total( $woocommerce->cart->shipping_tax_total ) );
+		update_post_meta( $order_id, '_order_tax', 				woocommerce_clean( $woocommerce->cart->tax_total ) );
+		update_post_meta( $order_id, '_order_shipping_tax', 	woocommerce_clean( $woocommerce->cart->shipping_tax_total ) );
 		update_post_meta( $order_id, '_order_total', 			woocommerce_format_total( $woocommerce->cart->total ) );
 		update_post_meta( $order_id, '_order_key', 				apply_filters('woocommerce_generate_order_key', uniqid('order_') ) );
 		update_post_meta( $order_id, '_customer_user', 			absint( $this->customer_id ) );

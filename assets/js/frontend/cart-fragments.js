@@ -19,6 +19,7 @@ jQuery(document).ready(function($) {
 					sessionStorage.setItem( "wc_cart_hash", data.cart_hash );
 				}
 
+				$('body').trigger( 'wc_fragments_refreshed' );
 			}
 		}
 	};
@@ -40,6 +41,8 @@ jQuery(document).ready(function($) {
 					$(key).replaceWith(value);
 				});
 
+				$('body').trigger( 'wc_fragments_loaded' );
+
 			} else {
 				throw "No fragment";
 			}
@@ -51,5 +54,15 @@ jQuery(document).ready(function($) {
 	} else {
 		$.ajax( $fragment_refresh );
 	}
+
+	/* Cart hiding */
+	if ( $.cookie( "woocommerce_items_in_cart" ) > 0 )
+		$('.hide_cart_widget_if_empty').closest('.widget_shopping_cart').show();
+	else
+		$('.hide_cart_widget_if_empty').closest('.widget_shopping_cart').hide();
+
+	$('body').bind( 'adding_to_cart', function() {
+		$('.hide_cart_widget_if_empty').closest('.widget_shopping_cart').show();
+	} );
 
 });

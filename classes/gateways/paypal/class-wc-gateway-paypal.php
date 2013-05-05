@@ -210,7 +210,7 @@ class WC_Gateway_Paypal extends WC_Payment_Gateway {
 							'type' => 'checkbox',
 							'label' => __( 'Enable logging', 'woocommerce' ),
 							'default' => 'no',
-							'description' => __( 'Log PayPal events, such as IPN requests, inside <code>woocommerce/logs/paypal.txt</code>' ),
+							'description' => sprintf( __( 'Log PayPal events, such as IPN requests, inside <code>woocommerce/logs/paypal-%s.txt</code>', 'woocommerce' ), sanitize_file_name( wp_hash( 'paypal' ) ) ),
 						)
 			);
 
@@ -424,20 +424,22 @@ class WC_Gateway_Paypal extends WC_Payment_Gateway {
 
 		$woocommerce->add_inline_js( '
 			jQuery("body").block({
-					message: "<img src=\"' . esc_url( apply_filters( 'woocommerce_ajax_loader_url', $woocommerce->plugin_url() . '/assets/images/ajax-loader.gif' ) ) . '\" alt=\"Redirecting&hellip;\" style=\"float:left; margin-right: 10px;\" />'.__( 'Thank you for your order. We are now redirecting you to PayPal to make payment.', 'woocommerce' ).'",
+					message: "' . __( 'Thank you for your order. We are now redirecting you to PayPal to make payment.', 'woocommerce' ) . '",
+					baseZ: 99999,
 					overlayCSS:
 					{
 						background: "#fff",
 						opacity: 0.6
 					},
 					css: {
-				        padding:        20,
+				        padding:        "20px",
+				        zindex:         "9999999",
 				        textAlign:      "center",
 				        color:          "#555",
 				        border:         "3px solid #aaa",
 				        backgroundColor:"#fff",
 				        cursor:         "wait",
-				        lineHeight:		"32px"
+				        lineHeight:		"24px",
 				    }
 				});
 			jQuery("#submit_paypal_payment_form").click();
@@ -608,6 +610,10 @@ class WC_Gateway_Paypal extends WC_Payment_Gateway {
 	        $posted['payment_status'] 	= strtolower( $posted['payment_status'] );
 	        $posted['txn_type'] 		= strtolower( $posted['txn_type'] );
 
+	        // Sandbox fix
+	        if ( $posted['test_ipn'] == 1 && $posted['payment_status'] == 'pending' )
+	        	$posted['payment_status'] = 'completed';
+
 	        if ( 'yes' == $this->debug )
 	        	$this->log->add( 'paypal', 'Payment status: ' . $posted['payment_status'] );
 
@@ -655,15 +661,15 @@ class WC_Gateway_Paypal extends WC_Payment_Gateway {
 
 					 // Store PP Details
 	                if ( ! empty( $posted['payer_email'] ) )
-	                	update_post_meta( $order_id, 'Payer PayPal address', $posted['payer_email'] );
+	                	update_post_meta( $order->id, 'Payer PayPal address', $posted['payer_email'] );
 	                if ( ! empty( $posted['txn_id'] ) )
-	                	update_post_meta( $order_id, 'Transaction ID', $posted['txn_id'] );
+	                	update_post_meta( $order->id, 'Transaction ID', $posted['txn_id'] );
 	                if ( ! empty( $posted['first_name'] ) )
-	                	update_post_meta( $order_id, 'Payer first name', $posted['first_name'] );
+	                	update_post_meta( $order->id, 'Payer first name', $posted['first_name'] );
 	                if ( ! empty( $posted['last_name'] ) )
-	                	update_post_meta( $order_id, 'Payer last name', $posted['last_name'] );
+	                	update_post_meta( $order->id, 'Payer last name', $posted['last_name'] );
 	                if ( ! empty( $posted['payment_type'] ) )
-	                	update_post_meta( $order_id, 'Payment type', $posted['payment_type'] );
+	                	update_post_meta( $order->id, 'Payment type', $posted['payment_type'] );
 
 	            	// Payment completed
 	                $order->add_order_note( __( 'IPN payment completed', 'woocommerce' ) );

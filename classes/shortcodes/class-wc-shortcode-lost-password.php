@@ -34,8 +34,6 @@ class WC_Shortcode_Lost_Password {
 	public static function output( $atts ) {
 		global $woocommerce;
 
-		$woocommerce->nocache();
-
 		global $post;
 
 		// arguments to pass to template
@@ -149,7 +147,7 @@ class WC_Shortcode_Lost_Password {
 
 		if ( ! $allow ) {
 
-			$woocommerce->add_error( __( 'Password reset is not allowed for this user') );
+			$woocommerce->add_error( __( 'Password reset is not allowed for this user' ) );
 
 			return false;
 

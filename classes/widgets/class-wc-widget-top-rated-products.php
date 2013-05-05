@@ -79,10 +79,7 @@ class WC_Widget_Top_Rated_Products extends WP_Widget {
 
 		$query_args = array('posts_per_page' => $number, 'no_found_rows' => 1, 'post_status' => 'publish', 'post_type' => 'product' );
 
-		$query_args['meta_query'] = array();
-
-	    $query_args['meta_query'][] = $woocommerce->query->stock_status_meta_query();
-	    $query_args['meta_query'][] = $woocommerce->query->visibility_meta_query();
+		$query_args['meta_query'] = $woocommerce->query->get_meta_query();
 
 		$top_rated_posts = new WP_Query( $query_args );
 
@@ -98,7 +95,7 @@ class WC_Widget_Top_Rated_Products extends WP_Widget {
 					<li><a href="<?php echo esc_url( get_permalink( $top_rated_posts->post->ID ) ); ?>" title="<?php echo esc_attr($top_rated_posts->post->post_title ? $top_rated_posts->post->post_title : $top_rated_posts->post->ID); ?>">
 						<?php echo $product->get_image(); ?>
 						<?php if ( $top_rated_posts->post->post_title ) echo get_the_title( $top_rated_posts->post->ID ); else echo $top_rated_posts->post->ID; ?>
-					</a> <?php echo $product->get_rating_html('sidebar'); ?><?php echo $product->get_price_html(); ?></li>
+					</a> <?php echo $product->get_rating_html(); ?><?php echo $product->get_price_html(); ?></li>
 
 					<?php endwhile; ?>
 				</ul>

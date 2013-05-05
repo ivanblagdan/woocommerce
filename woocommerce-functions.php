@@ -131,7 +131,7 @@ function woocommerce_nav_menu_items( $items, $args ) {
 		$hide_pages   = apply_filters( 'woocommerce_logged_out_hidden_page_ids', $hide_pages );
 
 		foreach ( $items as $key => $item ) {
-			if ( ! empty( $item->object_id ) && in_array( $item->object_id, $hide_pages ) ) {
+			if ( ! empty( $item->object_id ) && ! empty( $item->object ) && in_array( $item->object_id, $hide_pages ) && $item->object == 'page' ) {
 				unset( $items[ $key ] );
 			}
 		}
@@ -479,7 +479,7 @@ function woocommerce_add_to_cart_message( $product_id ) {
 			$titles[] = get_the_title( $id );
 		}
 
-		$added_text = sprintf( __( 'Added &quot;%s&quot; to your cart.', 'woocommerce' ), join( __('&quot; and &quot;'), array_filter( array_merge( array( join( '&quot;, &quot;', array_slice( $titles, 0, -1 ) ) ), array_slice( $titles, -1 ) ) ) ) );
+		$added_text = sprintf( __( 'Added &quot;%s&quot; to your cart.', 'woocommerce' ), join( __( '&quot; and &quot;', 'woocommerce' ), array_filter( array_merge( array( join( '&quot;, &quot;', array_slice( $titles, 0, -1 ) ) ), array_slice( $titles, -1 ) ) ) ) );
 
 	} else {
 		$added_text = sprintf( __( '&quot;%s&quot; was successfully added to your cart.', 'woocommerce' ), get_the_title( $product_id ) );
@@ -657,12 +657,13 @@ function woocommerce_process_login() {
 
 		$woocommerce->verify_nonce( 'login' );
 
-		if ( empty( $_POST['username'] ) ) $woocommerce->add_error( __( 'Username is required.', 'woocommerce' ) );
-		if ( empty( $_POST['password'] ) ) $woocommerce->add_error( __( 'Password is required.', 'woocommerce' ) );
-
-		if ( $woocommerce->error_count() == 0 ) {
-
+		try {
 			$creds = array();
+
+			if ( empty( $_POST['username'] ) )
+				throw new Exception( '<strong>' . __( 'Error', 'woocommerce' ) . ':</strong> ' . __( 'Username is required.', 'woocommerce' ) );
+			if ( empty( $_POST['password'] ) )
+				throw new Exception( '<strong>' . __( 'Error', 'woocommerce' ) . ':</strong> ' . __( 'Password is required.', 'woocommerce' ) );
 
 			if ( is_email( $_POST['username'] ) ) {
 				$user = get_user_by( 'email', $_POST['username'] );
@@ -670,7 +671,7 @@ function woocommerce_process_login() {
 				if ( isset( $user->user_login ) )
 					$creds['user_login'] 	= $user->user_login;
 				else
-					$creds['user_login'] 	= '';
+					throw new Exception( '<strong>' . __( 'Error', 'woocommerce' ) . ':</strong> ' . __( 'A user could not be found with this email address.', 'woocommerce' ) );
 			} else {
 				$creds['user_login'] 	= $_POST['username'];
 			}
@@ -681,7 +682,7 @@ function woocommerce_process_login() {
 			$user                   = wp_signon( $creds, $secure_cookie );
 
 			if ( is_wp_error( $user ) ) {
-				$woocommerce->add_error( $user->get_error_message() );
+				throw new Exception( $user->get_error_message() );
 			} else {
 
 				if ( ! empty( $_POST['redirect'] ) ) {
@@ -694,8 +695,9 @@ function woocommerce_process_login() {
 
 				wp_redirect( apply_filters( 'woocommerce_login_redirect', $redirect, $user ) );
 				exit;
-
 			}
+		} catch (Exception $e) {
+			$woocommerce->add_error( $e->getMessage() );
 		}
 	}
 }
@@ -802,14 +804,14 @@ function woocommerce_process_registration() {
             wp_set_auth_cookie($user_id, true, $secure_cookie);
 
             // Redirect
-            if ( wp_get_referer() ) {
-				wp_safe_redirect( wp_get_referer() );
-				exit;
+			if ( wp_get_referer() ) {
+				$redirect = esc_url( wp_get_referer() );
 			} else {
-				wp_redirect(get_permalink(woocommerce_get_page_id('myaccount')));
-				exit;
+				$redirect = esc_url( get_permalink( woocommerce_get_page_id( 'myaccount' ) ) );
 			}
 
+			wp_redirect( apply_filters( 'woocommerce_registration_redirect', $redirect ) );
+			exit;
 		}
 
 	}
@@ -927,12 +929,12 @@ function woocommerce_download_product() {
 
 	if ( isset( $_GET['download_file'] ) && isset( $_GET['order'] ) && isset( $_GET['email'] ) ) {
 
-		global $wpdb;
+		global $wpdb, $is_IE;
 
 		$product_id           = (int) urldecode($_GET['download_file']);
 		$order_key            = urldecode( $_GET['order'] );
 		$email                = sanitize_email( str_replace( ' ', '+', urldecode( $_GET['email'] ) ) );
-		$download_id          = isset( $_GET['key'] ) ? urldecode( $_GET['key'] ) : '';  // backwards compatibility for existing download URLs
+		$download_id          = isset( $_GET['key'] ) ? preg_replace( '/\s+/', ' ', urldecode( $_GET['key'] ) ) : '';
 		$_product             = get_product( $product_id );
 		$file_download_method = apply_filters( 'woocommerce_file_download_method', get_option( 'woocommerce_file_download_method' ), $product_id );
 
@@ -950,6 +952,7 @@ function woocommerce_download_product() {
 			$order_key,
 			$product_id
 		);
+
 		if ( $download_id ) {
 			// backwards compatibility for existing download URLs
 			$query .= " AND download_id = %s";
@@ -1034,14 +1037,16 @@ function woocommerce_download_product() {
 		if ( ! is_multisite() ) {
 
 			/*
-			 * If WP FORCE_SSL_ADMIN is enabled, file will have been inserted as https from Media Library
-			 * site_url() depends on whether the page containing the download (ie; My Account) is served via SSL.
-			 * So blindly doing a str_replace is incorrect because it will fail with schemes are mismatched.
+			 * Download file may be either http or https.
+			 * site_url() depends on whether the page containing the download (ie; My Account) is served via SSL because WC
+			 * modifies site_url() via a filter to force_ssl.
+			 * So blindly doing a str_replace is incorrect because it will fail when schemes are mismatched. This code
+			 * handles the various permutations.
 			 */
 			$scheme = parse_url( $file_path, PHP_URL_SCHEME );
 
 			if ( $scheme ) {
-				$site_url = site_url( '', $scheme );
+				$site_url = set_url_scheme( site_url( '' ), $scheme );
 			} else {
 				$site_url = is_ssl() ? str_replace( 'https:', 'http:', site_url() ) : site_url();
 			}
@@ -1101,7 +1106,13 @@ function woocommerce_download_product() {
 		if ( ob_get_level() )
 			@ob_end_clean(); // Zip corruption fix
 
-		nocache_headers();
+		if ( $is_IE && is_ssl() ) {
+			// IE bug prevents download via SSL when Cache Control and Pragma no-cache headers set.
+			header( 'Expires: Wed, 11 Jan 1984 05:00:00 GMT' );
+			header( 'Cache-Control: private' );
+		} else {
+			nocache_headers();
+		}
 
 		$file_name = basename( $file_path );
 
@@ -1200,47 +1211,53 @@ function woocommerce_readfile_chunked( $file, $retbytes = true ) {
 function woocommerce_ecommerce_tracking_piwik( $order_id ) {
 	global $woocommerce;
 
-	if (is_admin()) return; // Don't track admin
+	// Don't track admin
+	if ( current_user_can('manage_options') )
+		return;
 
 	// Call the Piwik ecommerce function if WP-Piwik is configured to add tracking codes to the page
-	$wp_piwik_global_settings = get_option('wp-piwik_global-settings');
+	$wp_piwik_global_settings = get_option( 'wp-piwik_global-settings' );
 
 	// Return if Piwik settings are not here, or if global is not set
-	if ( ! isset( $wp_piwik_global_settings['add_tracking_code'] ) || ! $wp_piwik_global_settings['add_tracking_code'] ) return;
-	if ( ! isset( $GLOBALS['wp_piwik'] ) ) return;
+	if ( ! isset( $wp_piwik_global_settings['add_tracking_code'] ) || ! $wp_piwik_global_settings['add_tracking_code'] )
+		return;
+	if ( ! isset( $GLOBALS['wp_piwik'] ) )
+		return;
 
-	// Remove WP-Piwik from wp_footer and run it here instead, to get Piwik
-	// loaded *before* we do our ecommerce tracking calls
-	remove_action('wp_footer', array($GLOBALS['wp_piwik'],'footer'));
-	$GLOBALS['wp_piwik']->footer();
-
-	// Get the order and output tracking code
-	$order = new WC_Order($order_id);
+	// Get the order and get tracking code
+	$order = new WC_Order( $order_id );
+	ob_start();
 	?>
-	<script type="text/javascript">
 	try {
 		// Add order items
-		<?php if ($order->get_items()) foreach($order->get_items() as $item) : $_product = $order->get_product_from_item( $item ); ?>
+		<?php if ( $order->get_items() ) foreach( $order->get_items() as $item ) : $_product = $order->get_product_from_item( $item ); ?>
+
 			piwikTracker.addEcommerceItem(
-				"<?php echo esc_js( $_product->sku ); ?>",	// (required) SKU: Product unique identifier
-				"<?php echo esc_js( $item['name'] ); ?>",		// (optional) Product name
-				"<?php if (isset($_product->variation_data)) echo esc_js( woocommerce_get_formatted_variation( $_product->variation_data, true ) ); ?>",	// (optional) Product category. You can also specify an array of up to 5 categories eg. ["Books", "New releases", "Biography"]
-				<?php echo esc_js( $order->get_item_total( $item ) ); ?>,		// (recommended) Product price
-				<?php echo esc_js( $item['qty'] ); ?> 		// (optional, default to 1) Product quantity
+				"<?php echo esc_js( $_product->get_sku() ); ?>",			// (required) SKU: Product unique identifier
+				"<?php echo esc_js( $item['name'] ); ?>",					// (optional) Product name
+				"<?php
+					if ( isset( $_product->variation_data ) )
+						echo esc_js( woocommerce_get_formatted_variation( $_product->variation_data, true ) );
+				?>",	// (optional) Product category. You can also specify an array of up to 5 categories eg. ["Books", "New releases", "Biography"]
+				<?php echo esc_js( $order->get_item_total( $item ) ); ?>,	// (recommended) Product price
+				<?php echo esc_js( $item['qty'] ); ?> 						// (optional, default to 1) Product quantity
 			);
+
 		<?php endforeach; ?>
+
 		// Track order
 		piwikTracker.trackEcommerceOrder(
-			"<?php echo esc_js( $order_id ); ?>",		// (required) Unique Order ID
-			<?php echo esc_js( $order->order_total ); ?>,	// (required) Order Revenue grand total (includes tax, shipping, and subtracted discount)
-			false,					// (optional) Order sub total (excludes shipping)
-			<?php echo esc_js( $order->get_total_tax() ); ?>,	// (optional) Tax amount
-			<?php echo esc_js( $order->get_shipping() ); ?>,	// (optional) Shipping amount
-			false 					// (optional) Discount offered (set to false for unspecified parameter)
+			"<?php echo esc_js( $order->get_order_number() ); ?>",	// (required) Unique Order ID
+			<?php echo esc_js( $order->get_total() ); ?>,			// (required) Order Revenue grand total (includes tax, shipping, and subtracted discount)
+			false,													// (optional) Order sub total (excludes shipping)
+			<?php echo esc_js( $order->get_total_tax() ); ?>,		// (optional) Tax amount
+			<?php echo esc_js( $order->get_shipping() ); ?>,		// (optional) Shipping amount
+			false 													// (optional) Discount offered (set to false for unspecified parameter)
 		);
 	} catch( err ) {}
-	</script>
 	<?php
+	$code = ob_get_clean();
+	$woocommerce->add_inline_js( $code );
 }
 
 
@@ -1285,17 +1302,15 @@ function woocommerce_products_rss_feed() {
  * @param mixed $comment_id
  * @return void
  */
-function woocommerce_add_comment_rating($comment_id) {
+function woocommerce_add_comment_rating( $comment_id ) {
 	if ( isset( $_POST['rating'] ) ) {
-		global $post;
 
 		if ( ! $_POST['rating'] || $_POST['rating'] > 5 || $_POST['rating'] < 0 )
 			return;
 
 		add_comment_meta( $comment_id, 'rating', (int) esc_attr( $_POST['rating'] ), true );
 
-		delete_transient( 'wc_average_rating_' . esc_attr($post->ID) );
-		delete_transient( 'wc_rating_count_' . esc_attr($post->ID) );
+		woocommerce_clear_comment_rating_transients( $comment_id );
 	}
 }
 
@@ -1307,7 +1322,7 @@ function woocommerce_add_comment_rating($comment_id) {
  * @param array $comment_data
  * @return array
  */
-function woocommerce_check_comment_rating($comment_data) {
+function woocommerce_check_comment_rating( $comment_data ) {
 	global $woocommerce;
 
 	// If posting a comment (not trackback etc) and not logged in
@@ -1400,10 +1415,10 @@ function woocommerce_layered_nav_init( ) {
 
 		    		$_chosen_attributes[ $taxonomy ]['terms'] = explode( ',', $_GET[ $name ] );
 
-		    		if ( ! empty( $_GET[ $query_type_name ] ) && $_GET[ $query_type_name ] == 'or' )
-		    			$_chosen_attributes[ $taxonomy ]['query_type'] = 'or';
+		    		if ( empty( $_GET[ $query_type_name ] ) || ! in_array( strtolower( $_GET[ $query_type_name ] ), array( 'and', 'or' ) ) )
+		    			$_chosen_attributes[ $taxonomy ]['query_type'] = apply_filters( 'woocommerce_layered_nav_default_query_type', 'and' );
 		    		else
-		    			$_chosen_attributes[ $taxonomy ]['query_type'] = 'and';
+		    			$_chosen_attributes[ $taxonomy ]['query_type'] = strtolower( $_GET[ $query_type_name ] );
 
 				}
 			}

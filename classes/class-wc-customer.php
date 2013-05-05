@@ -633,17 +633,19 @@ class WC_Customer {
 
 					// Rename previous download with file number if there are multiple files only
 					if ( $file_number == 1 ) {
-						$downloads[ count( $downloads ) - 1 ]['download_name'] = apply_filters(
+						$previous_result = &$downloads[count($downloads)-1];
+						$previous_product = get_product($previous_result['product_id']);
+						$previous_result['download_name'] = apply_filters(
 							'woocommerce_downloadable_product_name',
-							$downloads[ count( $downloads ) - 1 ]['download_name'] . ' &mdash; ' . sprintf( __( 'File %d', 'woocommerce' ), $file_number ),
-							$_product,
-							$result->download_id,
+							$previous_result['download_name']. ' &mdash; ' . sprintf( __('File %d', 'woocommerce' ), $file_number ),
+							$previous_product,
+							$previous_result['download_id'],
 							0
 						);
 					}
 
 					$downloads[] = array(
-						'download_url' => add_query_arg( array( 'download_file' => $result->product_id, 'order' => $result->order_key, 'email' => $result->user_email, 'key' => $result->download_id ), trailingslashit( home_url() ) ),
+						'download_url' => add_query_arg( array( 'download_file' => $result->product_id, 'order' => $result->order_key, 'email' => $result->user_email, 'key' => $result->download_id ), trailingslashit( home_url( '', 'http' ) ) ),
 						'download_id' => $result->download_id,
 						'product_id' => $result->product_id,
 						'download_name' => $download_name,

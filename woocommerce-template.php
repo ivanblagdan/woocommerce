@@ -36,9 +36,13 @@ if ( ! function_exists( 'woocommerce_content' ) ) {
 
 			endwhile;
 
-		} else {
+		} else { ?>
 
-			?><h1 class="page-title"><?php woocommerce_page_title(); ?></h1>
+			<?php if ( apply_filters( 'woocommerce_show_page_title', true ) ) : ?>
+
+				<h1 class="page-title"><?php woocommerce_page_title(); ?></h1>
+
+			<?php endif; ?>
 
 			<?php do_action( 'woocommerce_archive_description' ); ?>
 
@@ -279,9 +283,9 @@ if ( ! function_exists( 'woocommerce_taxonomy_archive_description' ) ) {
 	 */
 	function woocommerce_taxonomy_archive_description() {
 		if ( is_tax( array( 'product_cat', 'product_tag' ) ) && get_query_var( 'paged' ) == 0 ) {
-			$description = term_description();
+			$description = apply_filters( 'the_content', term_description() );
 			if ( $description ) {
-				echo '<div class="term-description">' . wpautop( wptexturize( $description ) ) . '</div>';
+				echo '<div class="term-description">' . $description . '</div>';
 			}
 		}
 	}
@@ -1039,7 +1043,7 @@ if ( ! function_exists( 'woocommerce_products_will_display' ) ) {
 	function woocommerce_products_will_display() {
 		global $woocommerce, $wpdb;
 
-		if ( ! is_product_category() && ! is_shop() )
+		if ( ! is_product_category() && ! is_product_tag() && ! is_shop() && ! is_product_taxonomy() )
 			return false;
 
 		if ( is_search() || is_filtered() || is_paged() )

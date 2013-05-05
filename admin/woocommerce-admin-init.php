@@ -68,7 +68,9 @@ function woocommerce_admin_menu() {
     add_action( 'load-' . $main_page, 'woocommerce_admin_help_tab' );
     add_action( 'load-' . $reports_page, 'woocommerce_admin_help_tab' );
 
-    $print_css_on = apply_filters( 'woocommerce_screen_ids', array( 'toplevel_page_woocommerce', 'woocommerce_page_woocommerce_settings', 'woocommerce_page_woocommerce_reports', 'woocommerce_page_woocommerce_status', 'product_page_woocommerce_attributes', 'edit-tags.php', 'edit.php', 'index.php', 'post-new.php', 'post.php' ) );
+    $wc_screen_id = strtolower( __( 'WooCommerce', 'woocommerce' ) );
+
+    $print_css_on = apply_filters( 'woocommerce_screen_ids', array( 'toplevel_page_' . $wc_screen_id, $wc_screen_id . '_page_woocommerce_settings', $wc_screen_id . '_page_woocommerce_reports', 'toplevel_page_woocommerce', 'woocommerce_page_woocommerce_settings', 'woocommerce_page_woocommerce_reports', 'woocommerce_page_woocommerce_status', 'product_page_woocommerce_attributes', 'edit-tags.php', 'edit.php', 'index.php', 'post-new.php', 'post.php' ) );
 
     foreach ( $print_css_on as $page )
     	add_action( 'admin_print_styles-'. $page, 'woocommerce_admin_css' );
@@ -171,7 +173,7 @@ function woocommerce_admin_notices_styles() {
 
 	$template = get_option( 'template' );
 
-	if ( ! current_theme_supports( 'woocommerce' ) && ! in_array( $template, array( 'twentyeleven', 'twentytwelve', 'twentyten' ) ) ) {
+	if ( ! current_theme_supports( 'woocommerce' ) && ! in_array( $template, array( 'twentythirteen', 'twentyeleven', 'twentytwelve', 'twentyten' ) ) ) {
 
 		if ( ! empty( $_GET['hide_woocommerce_theme_support_check'] ) ) {
 			update_option( 'woocommerce_theme_support_check', $template );
@@ -398,10 +400,11 @@ function woocommerce_admin_scripts() {
 	wp_register_script( 'chosen', $woocommerce->plugin_url() . '/assets/js/chosen/chosen.jquery'.$suffix.'.js', array('jquery'), $woocommerce->version );
 
 	// Get admin screen id
-    $screen = get_current_screen();
+    $screen       = get_current_screen();
+    $wc_screen_id = strtolower( __( 'WooCommerce', 'woocommerce' ) );
 
     // WooCommerce admin pages
-    if ( in_array( $screen->id, apply_filters( 'woocommerce_screen_ids', array( 'toplevel_page_woocommerce', 'woocommerce_page_woocommerce_settings', 'woocommerce_page_woocommerce_reports', 'edit-shop_order', 'edit-shop_coupon', 'shop_coupon', 'shop_order', 'edit-product', 'product' ) ) ) ) {
+    if ( in_array( $screen->id, apply_filters( 'woocommerce_screen_ids', array( 'toplevel_page_' . $wc_screen_id, $wc_screen_id . '_page_woocommerce_settings', $wc_screen_id . '_page_woocommerce_reports', 'toplevel_page_woocommerce', 'woocommerce_page_woocommerce_settings', 'woocommerce_page_woocommerce_reports', 'edit-shop_order', 'edit-shop_coupon', 'shop_coupon', 'shop_order', 'edit-product', 'product' ) ) ) ) {
 
     	wp_enqueue_script( 'woocommerce_admin' );
     	wp_enqueue_script( 'farbtastic' );
@@ -458,6 +461,7 @@ function woocommerce_admin_scripts() {
 			'search_products_nonce' 		=> wp_create_nonce("search-products"),
 			'calendar_image'				=> $woocommerce->plugin_url().'/assets/images/calendar.png',
 			'post_id'						=> $post->ID,
+			'base_country'					=> $woocommerce->countries->get_base_country(),
 			'currency_format_num_decimals'	=> absint( get_option( 'woocommerce_price_num_decimals' ) ),
 			'currency_format_symbol'		=> get_woocommerce_currency_symbol(),
 			'currency_format_decimal_sep'	=> esc_attr( stripslashes( get_option( 'woocommerce_price_decimal_sep' ) ) ),
@@ -495,7 +499,7 @@ function woocommerce_admin_scripts() {
 	}
 
 	// Reports pages
-    if ( $screen->id == apply_filters( 'woocommerce_reports_screen_id', 'woocommerce_page_woocommerce_reports' ) ) {
+    if ( in_array( $screen->id, apply_filters( 'woocommerce_reports_screen_ids', array( $wc_screen_id . '_page_woocommerce_reports', apply_filters( 'woocommerce_reports_screen_id', 'woocommerce_page_woocommerce_reports' ) ) ) ) ) {
 
 		wp_enqueue_script( 'jquery-ui-datepicker' );
 		wp_enqueue_script( 'flot', $woocommerce->plugin_url() . '/assets/js/admin/jquery.flot'.$suffix.'.js', 'jquery', '1.0' );
@@ -750,7 +754,7 @@ function woocommerce_permalink_settings() {
 	<table class="form-table">
 		<tbody>
 			<tr>
-				<th><label><input name="product_permalink" type="radio" value="<?php echo $structures[0]; ?>" class="wctog" <?php checked( $structures[0], $product_permalink ); ?> /> <?php _e( 'Default' ); ?></label></th>
+				<th><label><input name="product_permalink" type="radio" value="<?php echo $structures[0]; ?>" class="wctog" <?php checked( $structures[0], $product_permalink ); ?> /> <?php _e( 'Default', 'woocommerce' ); ?></label></th>
 				<td><code><?php echo home_url(); ?>/?product=sample-product</code></td>
 			</tr>
 			<tr>
@@ -838,7 +842,7 @@ function woocommerce_permalink_settings_save() {
 		return;
 
 	// We need to save the options ourselves; settings api does not trigger save for the permalinks page
-	if ( isset( $_POST['permalink_structure'] ) || isset( $_POST['category_base'] ) ) {
+	if ( isset( $_POST['permalink_structure'] ) || isset( $_POST['category_base'] ) && isset( $_POST['product_permalink'] ) ) {
 		// Cat and tag bases
 		$woocommerce_product_category_slug = woocommerce_clean( $_POST['woocommerce_product_category_slug'] );
 		$woocommerce_product_tag_slug = woocommerce_clean( $_POST['woocommerce_product_tag_slug'] );
